@@ -12,6 +12,7 @@ import Keywords from "@/pages/Keywords";
 import Technical from "@/pages/Technical";
 import Cost from "@/pages/Cost";
 import AIOperations from "@/pages/AIOperations";
+import Connections from "@/pages/Connections";
 
 const Protected = ({ children }) => {
   const { user } = useAuth();
@@ -43,6 +44,7 @@ function App() {
               <Route path="/technical" element={<Technical />} />
               <Route path="/cost" element={<Cost />} />
               <Route path="/ai-operations" element={<AIOperations />} />
+              <Route path="/connections" element={<Connections />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

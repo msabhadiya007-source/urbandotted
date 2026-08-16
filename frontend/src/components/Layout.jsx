@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Activity, AlertTriangle, BarChart3, Boxes, Brain, Coins, FlaskConical, Gauge,
-  LayoutGrid, LogOut, Radar, Search, ShieldCheck, Target, TriangleAlert, Wrench,
+  LayoutGrid, LogOut, Plug, Radar, Search, ShieldCheck, Target, TriangleAlert, Wrench,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -17,6 +17,7 @@ const NAV = [
   { section: "Operations" },
   { to: "/ai-operations", label: "AI Operations", icon: Brain, testId: "nav-ai-operations" },
   { to: "/cost", label: "Cost", icon: Coins, testId: "nav-cost" },
+  { to: "/connections", label: "Connections", icon: Plug, testId: "nav-connections" },
   { section: "Stage 1 backlog" },
   { label: "Products", icon: Boxes, disabled: true },
   { label: "Collections", icon: BarChart3, disabled: true },
@@ -108,6 +109,7 @@ export default function Layout() {
               Development fixtures · adapter {mode.database_adapter} · queue {mode.queue_backend} · live
               sources pending: {mode.missing_live_sources?.join(", ") || "none"}
             </span>
+            <a href="/connections" className="ml-auto underline">Connect live data →</a>
           </div>
         )}
         <div className="flex items-center justify-between border-b border-[#262626] px-4 py-2 lg:hidden">

@@ -15,6 +15,7 @@ from app.config import get_settings  # noqa: E402
 from app.db import close_db, ensure_indexes, get_db  # noqa: E402
 from app.deps import audit, queue, uow  # noqa: E402
 from app.routes_auth import router as auth_router  # noqa: E402
+from app.routes_admin import router as admin_router, webhook_router  # noqa: E402
 from app.routes_data import router as data_router  # noqa: E402
 from app.security import hash_password, verify_password  # noqa: E402
 from app.services.agents import AGENT_ROLES  # noqa: E402
@@ -28,6 +29,8 @@ S = get_settings()
 app = FastAPI(title="UrbanDotted SEO Intelligence Platform", version="1.0.0-stage1")
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
+api_router.include_router(admin_router)
+api_router.include_router(webhook_router)
 api_router.include_router(data_router)
 
 
@@ -78,6 +81,20 @@ async def seed_admin():
         await db.users.update_one({"email": email},
                                   {"$set": {"password_hash": hash_password(password)}})
 
+    # Read-only fixture account so RBAC gates can be proven end to end.
+    analyst_email = os.environ.get("ANALYST_EMAIL", "analyst@urbandotted.com").lower()
+    analyst_password = os.environ.get("ANALYST_PASSWORD", "Stage1Analyst!2026")
+    analyst = await db.users.find_one({"email": analyst_email})
+    if analyst is None:
+        await db.users.insert_one({"email": analyst_email,
+                                   "password_hash": hash_password(analyst_password),
+                                   "name": "Stage 1 Analyst", "role": "analyst",
+                                   "created_at": datetime.now(timezone.utc).isoformat()})
+    elif not verify_password(analyst_password, analyst["password_hash"]):
+        await db.users.update_one({"email": analyst_email},
+                                  {"$set": {"password_hash": hash_password(analyst_password),
+                                            "role": "analyst"}})
+
 
 @app.on_event("startup")
 async def startup():
@@ -98,7 +115,7 @@ async def startup():
     if await uow.agent_roles.count({}) == 0:
         await uow.agent_roles.insert_many([dict(r) for r in AGENT_ROLES])
 
-    if S.demo_infra_mode and await uow.products.count({}) == 0:
+    if S.demo_infra_mode and not S.live_data_mode and await uow.products.count({}) == 0:
         from app.seed import seed_demo_data
         stats = await seed_demo_data(uow, S.active_markets)
         logger.info("seeded demo fixtures: %s", stats)

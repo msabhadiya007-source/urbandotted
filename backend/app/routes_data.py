@@ -18,7 +18,7 @@ S = get_settings()
 async def mode():
     """Explicit demo vs live identification. Never a silent fallback."""
     shopify, gsc = "not_configured", "not_configured"
-    if not S.demo_infra_mode:
+    if S.live_data_mode:
         try:
             get_shopify_source()
             shopify = "live"
@@ -32,10 +32,11 @@ async def mode():
     return {
         "data_mode": S.data_mode,
         "demo_infra_mode": S.demo_infra_mode,
+        "live_data_mode": S.live_data_mode,
         "database_adapter": "mongodb_dev_adapter" if S.demo_infra_mode else "postgresql_16",
         "queue_backend": queue.backend,
-        "gsc_source": "seed_fixture" if S.demo_infra_mode else gsc,
-        "shopify_source": "seed_fixture" if S.demo_infra_mode else shopify,
+        "gsc_source": "seed_fixture" if not S.live_data_mode else gsc,
+        "shopify_source": "seed_fixture" if not S.live_data_mode else shopify,
         "missing_live_infra": S.missing_live_infra(),
         "missing_live_sources": S.missing_live_sources(),
         "active_markets": S.active_markets,

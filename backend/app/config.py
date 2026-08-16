@@ -9,7 +9,12 @@ class Settings:
         # In production mode the app requires Postgres/Redis/BigQuery config and must NEVER
         # silently fall back to demo infrastructure.
         self.demo_infra_mode: bool = os.environ.get("DEMO_INFRA_MODE", "true").lower() == "true"
-        self.data_mode: str = "DEMO" if self.demo_infra_mode else "LIVE"
+
+        # DATA mode is independent of INFRA mode. LIVE_DATA_MODE is only flipped on by the
+        # Connections endpoint after credential verification succeeds. In LIVE mode seeded
+        # fixtures are excluded from every read and the demo seeder never runs again.
+        self.live_data_mode: bool = os.environ.get("LIVE_DATA_MODE", "false").lower() == "true"
+        self.data_mode: str = "LIVE" if self.live_data_mode else "DEMO"
 
         self.mongo_url: str = os.environ["MONGO_URL"]
         self.db_name: str = os.environ["DB_NAME"]
@@ -18,13 +23,21 @@ class Settings:
         self.redis_url: str | None = os.environ.get("REDIS_URL")
         self.bigquery_project: str | None = os.environ.get("BIGQUERY_PROJECT")
         self.bigquery_dataset: str | None = os.environ.get("BIGQUERY_DATASET")
+        self.bigquery_location: str | None = os.environ.get("BIGQUERY_LOCATION")
 
         self.shopify_shop_domain: str | None = os.environ.get("SHOPIFY_SHOP_DOMAIN")
         self.shopify_admin_token: str | None = os.environ.get("SHOPIFY_ADMIN_API_TOKEN")
         self.shopify_api_version: str = os.environ.get("SHOPIFY_API_VERSION", "2025-01")
+        self.shopify_webhook_secret: str | None = os.environ.get("SHOPIFY_WEBHOOK_SECRET")
+
 
         self.gsc_site_url: str | None = os.environ.get("GSC_SITE_URL")
         self.gsc_service_account_json: str | None = os.environ.get("GSC_SERVICE_ACCOUNT_JSON")
+
+        self.crawl_requests_per_sec: float = float(os.environ.get("CRAWL_REQUESTS_PER_SEC", "3"))
+        self.crawl_workers: int = int(os.environ.get("CRAWL_WORKERS", "3"))
+        self.crawl_min_requests_per_sec: float = float(os.environ.get("CRAWL_MIN_REQUESTS_PER_SEC", "1"))
+        self.gsc_bootstrap_months: int = int(os.environ.get("GSC_BOOTSTRAP_MONTHS", "16"))
 
         self.dataforseo_login: str | None = os.environ.get("DATAFORSEO_LOGIN")
         self.dataforseo_password: str | None = os.environ.get("DATAFORSEO_PASSWORD")

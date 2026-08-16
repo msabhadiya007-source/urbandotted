@@ -42,13 +42,13 @@ class Repository(ABC):
 class MongoRepository(Repository):
     """Temporary development adapter. NOT the production source of truth."""
 
-    def __init__(self, db, table: str):
+    def __init__(self, db, table: str, base_filter: dict | None = None):
         self._c = db[table]
         self.table = table
+        self._base = base_filter or {}
 
-    @staticmethod
-    def _where(where: dict | None) -> dict:
-        w = dict(where or {})
+    def _where(self, where: dict | None) -> dict:
+        w = {**self._base, **(where or {})}
         if "id" in w:
             v = w.pop("id")
             w["_id"] = ObjectId(v) if isinstance(v, str) and ObjectId.is_valid(v) else v
@@ -97,6 +97,12 @@ class MongoRepository(Repository):
         return res.deleted_count
 
     async def aggregate(self, pipeline: list[dict]) -> list[dict]:
+        if self._base:
+            first = pipeline[0] if pipeline else {}
+            if "$match" in first:
+                pipeline = [{"$match": {**self._base, **first["$match"]}}, *pipeline[1:]]
+            else:
+                pipeline = [{"$match": dict(self._base)}, *pipeline]
         out = []
         for d in await self._c.aggregate(pipeline).to_list(length=200000):
             if isinstance(d.get("_id"), ObjectId):
@@ -106,7 +112,17 @@ class MongoRepository(Repository):
 
 
 class UnitOfWork:
-    """Named repositories for the Stage 1 relational domain."""
+    """Named repositories for the Stage 1 relational domain.
+
+    In LIVE data mode every intelligence table read is scoped to exclude seeded fixtures, so a
+    live dashboard can never render demo rows.
+    """
+
+    FIXTURE_SCOPED = {
+        "products", "product_market", "collections", "pages", "page_market", "keywords",
+        "gsc_performance", "opportunity_scores", "technical_issues", "competitors",
+        "serp_snapshots", "cannibalization", "cost_ledger", "sync_runs",
+    }
 
     TABLES = {
         "products": "products",
@@ -133,25 +149,40 @@ class UnitOfWork:
         "budgets": "budgets",
         "users": "users",
         "login_attempts": "login_attempts",
+        "product_variants": "product_variants",
+        "connection_state": "connection_state",
+        "webhook_events": "webhook_events",
+        "url_reconciliation": "url_reconciliation",
+        "reports": "reports",
+        "crawl_config": "crawl_config",
+        "sitemap_urls": "sitemap_urls",
+        "crawl_runs": "crawl_runs",
     }
 
-    def __init__(self, db):
+    def __init__(self, db, exclude_fixtures: bool = False):
         self._db = db
+        self._exclude_fixtures = exclude_fixtures
         self._cache: dict[str, Repository] = {}
 
     def __getattr__(self, name: str) -> Repository:
         if name not in self.TABLES:
             raise AttributeError(name)
         if name not in self._cache:
-            self._cache[name] = MongoRepository(self._db, self.TABLES[name])
+            base = ({"data_mode": {"$ne": "DEMO"}}
+                    if self._exclude_fixtures and name in self.FIXTURE_SCOPED else None)
+            self._cache[name] = MongoRepository(self._db, self.TABLES[name], base)
         return self._cache[name]
 
     def repo(self, name: str) -> Repository:
         return getattr(self, name)
 
+    def unscoped(self) -> "UnitOfWork":
+        """Writer view that can see and replace fixture rows (used by ingest + purge)."""
+        return UnitOfWork(self._db, exclude_fixtures=False)
 
-def get_uow(db) -> UnitOfWork:
-    return UnitOfWork(db)
+
+def get_uow(db, exclude_fixtures: bool = False) -> UnitOfWork:
+    return UnitOfWork(db, exclude_fixtures=exclude_fixtures)
 
 
 _ANY: Any = None

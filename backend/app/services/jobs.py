@@ -8,6 +8,7 @@ import traceback
 from datetime import datetime, timezone
 
 from ..config import get_settings
+from . import secrets
 
 
 class JobQueue:
@@ -35,7 +36,7 @@ class JobQueue:
             result = await handler(**kwargs)
             status, error = "success", None
         except Exception as exc:  # noqa: BLE001
-            result, status, error = {}, "failed", f"{type(exc).__name__}: {exc}"
+            result, status, error = {}, "failed", secrets.redact(f"{type(exc).__name__}: {exc}")[:400]
             traceback.print_exc()
         finished = datetime.now(timezone.utc)
         await self.uow.agent_activity.update_one({"id": activity_id}, {

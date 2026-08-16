@@ -352,10 +352,13 @@ class TestBruteForce:
         client = MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
         db = client[os.environ.get("DB_NAME", "test_database")]
         db.login_attempts.delete_many({})
+        # Sample after every attempt: other test files clear admin lockouts so they are not
+        # blocked by this scenario, so the row may be removed before the loop finishes.
+        locked_rows = []
         for i in range(15):
             requests.post(f"{API}/auth/login",
                           json={"email": ADMIN_EMAIL, "password": f"wrong{i}"})
-        locked_rows = list(db.login_attempts.find({"locked_until": {"$exists": True}}))
+            locked_rows += list(db.login_attempts.find({"locked_until": {"$exists": True}}))
         # cleanup
         db.login_attempts.delete_many({})
         # verify admin can log in now

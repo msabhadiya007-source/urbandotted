@@ -1,0 +1,98 @@
+{
+  "summary": "Stage 1 LIVE DATA control-plane testing (backend + frontend). Extended the regression suite with 52 new pytest cases (/app/backend/tests/test_stage1_live.py) plus 6 signed-webhook cases (/app/backend/tests/test_webhook_replay.py, run with SHOPIFY_WEBHOOK_SECRET temporarily configured and then restored). Final run: 91 passed / 6 skipped (webhook replay skips once the secret is removed again). Verified: presence-only connection status with no secret material, sanitised 4xx on bogus Shopify/GSC credentials, no token or private key in responses or /var/log/supervisor/backend.*.log, activate-live refusal (mode still DEMO), crawl-settings validation + 422 on out-of-range, HMAC rejection (401 + webhook.hmac_rejected audit + no webhook_events row), signed webhook idempotency (duplicate_ignored, single row) and order safety (stale updated_at did not regress the stored product), clean failures for live-only endpoints (SourceUnavailable, no 500, visible in /api/agents/activity), full live-acceptance-report shape with zero live counts and ready_for_stage1_acceptance=false, Stage 1 write invariants (0 write routes in the OpenAPI schema, all policies DENY, executor no_op_logger, STAGE_1_WRITES_DISABLED on execute), DEMO dashboards still non-empty while /admin/shopify/sync/status and /admin/gsc/status report zero LIVE rows, url-reconciliation shape + run, unauthenticated 401 on all 13 admin endpoints, audit rows for every admin action and audit/verify valid. Frontend: Connections screen, all 5 tabs, secret-masked inputs, sanitised error toasts, activate-live refusal, plus a full regression sweep of Overview / AU+NZ War Rooms / Opportunities+Keywords+Technical drawers / Cost exhaustion+reset / AI Operations tabs. Crawler limiter reviewed in code: a single SharedRateLimiter instance is shared by all workers (asyncio.Semaphore(workers) + one lock-guarded token bucket), so 3 workers share one 3 req/sec bucket. All test data cleaned up (0 webhook_events, 0 LIVE rows, 1200 DEMO products intact) and /app/backend/.env restored (all managed secret keys empty, LIVE_DATA_MODE never set).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/connections/shopify",
+        "issue": "Credentials are written to /app/backend/.env BEFORE verification and only rolled back in the exception handler. During UI testing a bogus, never-verified credential pair (shop_domain=nonexistent-test-store-9f2b.myshopify.com, token=shpat_UIBOGUS...) was left persisted in .env and GET /api/admin/connections then reported shopify admin_token_configured=true / 'Configured' in the UI even though every verification attempt had failed. Reproduced once via the browser flow; three targeted repro attempts (client abort via curl --max-time, browser navigate-away mid-request, concurrent crawl-settings write during the 35s verification) each rolled back correctly, so the failure window is narrow but real. Also note _rollback restores the snapshot taken from os.environ at request start, so a leaked value becomes the 'previous' state of every later attempt and is re-persisted indefinitely.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/admin/connections/shopify | /gsc | /activate-live",
+        "issue": "A wrong store domain returns HTTP 404 from Shopify but LiveShopifyAdapter._gql retries it 5 times with backoff, so a failed verification blocks the request for ~35s (measured). 404/400/403 are not retryable and should fail fast."
+      },
+      {
+        "endpoint": "/api/agents/activity and agent memories",
+        "issue": "services/jobs.py stores the raw exception string (f\"{type(exc).__name__}: {exc}\") in agent_activity.error and in the failure memory without secrets.redact(). Every other path redacts. A credential-bearing exception message would therefore be persisted in the DB and returned by the API."
+      },
+      {
+        "endpoint": "GET /api/admin/connections, GET /api/admin/live-acceptance-report",
+        "issue": "routes_admin.py binds S = get_settings() at import time, while the connection endpoints call get_settings.cache_clear(). status['data_mode'] / provenance / _readiness therefore read a stale Settings object: immediately after activate-live the response can show live_data_mode true (read from env) next to data_mode DEMO (read from stale S) until the backend restarts."
+      },
+      {
+        "endpoint": "services/secrets.write_secrets",
+        "issue": "Non-atomic read-modify-write of .env with no lock (concurrent admin writes can lose a key), and rollback writes empty strings instead of removing the managed keys, so the file accumulates KEY=\"\" placeholders."
+      },
+      {
+        "endpoint": "RBAC (permission granularity)",
+        "issue": "Could not test permission-level denial (manage_budget vs run_pipeline) because only one admin account exists and it holds every permission. Unauthenticated 401 was verified on all admin endpoints; a non-privileged fixture user would be needed to prove the manage_budget/run_pipeline gates."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Connections / Acceptance report tab",
+        "issue": "'Purge demo fixtures' is a single-click destructive action (deletes all 1200 seeded DEMO rows) with no confirmation dialog or typed confirmation.",
+        "selector": "[data-testid=\"purge-fixtures-button\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Connections / Credentials",
+        "issue": "Shopify and GSC verification take up to ~35s; the only feedback is the disabled button (opacity 40) with no spinner or 'Verifying…' label, so the screen looks frozen and an impatient admin can navigate away mid-verification (which is exactly the window in which the credential rollback was observed to fail).",
+        "selector": "[data-testid=\"shopify-save-button\"]",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Connections status cards",
+        "issue": "The Shopify/GSC cards show 'Configured' purely from credential presence, with no verified/unverified distinction, so an unverified (or leaked) credential is presented as a working connection. The mutation's onError path also does not invalidate the connections query, so the card can stay stale after a failed attempt.",
+        "selector": "[data-testid=\"conn-metric-shopify\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Connections",
+        "issues": [
+          "Layout, contrast and spacing are consistent with the rest of the app; DEMO banner, four status cards, 7-check readiness grid and all five tabs render with no console errors.",
+          "React dev warning '<span> cannot be a child of <option>' on Opportunities is produced by the preview instrumentation wrapper, not by application code - no action needed."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_stage1_live.py",
+    "/app/backend/tests/test_webhook_replay.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/stage1_results.xml"
+  ],
+  "action_items": [
+    "Verify credentials BEFORE persisting them: build LiveShopifyAdapter / SearchAnalyticsAPISource from the request payload (candidate credentials) and only call write_secrets after verify() succeeds. This removes the whole class of rollback failure observed (unverified token left in .env and reported as Configured). If write-first is kept, wrap the verify/rollback in try/finally with asyncio.shield so cancellation cannot skip the rollback.",
+    "Do not retry non-retryable Shopify statuses (400/401/403/404) - fail fast instead of the current ~35s, 5-attempt backoff.",
+    "Redact job errors in services/jobs.py before writing them to agent_activity.error and the failure memory (use services.secrets.redact).",
+    "Re-read settings per request in routes_admin.py (call get_settings() inside handlers) instead of the module-level S, so data_mode/provenance/readiness cannot go stale after cache_clear.",
+    "Add a confirmation step to the 'Purge demo fixtures' button and surface a verified-vs-configured state on the connection cards; invalidate the connections query on mutation error too."
+  ],
+  "critical_code_review_comments": [
+    "routes_admin.connect_shopify/connect_gsc/connect_bigquery persist secrets first and rely on an exception handler for rollback - unverified secrets can survive a failed verification (observed). Verify-then-persist is the correct order.",
+    "services/secrets.write_secrets performs an unsynchronised read-modify-write on the shared .env file; two concurrent admin writes can drop a key. Guard with a lock/atomic replace.",
+    "services/jobs.JobQueue.enqueue is the only path that stores an un-redacted exception string in the DB and exposes it through /api/agents/activity.",
+    "Crawler limiter semantics are correct: one SharedRateLimiter instance guarded by a single asyncio.Lock is shared by all workers (Semaphore(crawl_workers)), so the configured rate is a combined ceiling, with halving on 429/5xx/latency>4s and 1.15x recovery bounded by the ceiling.",
+    "webhooks.ingest correctly de-duplicates on X-Shopify-Webhook-Id before insert and shopify_sync.apply_webhook guards on updated_at, so replays and out-of-order deliveries are safe (both verified end-to-end with a signed payload)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_stage1_live.py",
+    "/app/backend/tests/test_webhook_replay.py",
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100% (91 passed, 6 skipped by design)", "frontend": "100% of flows exercised loaded and worked"},
+  "seed_data_creation": "Temporary only: SHOPIFY_WEBHOOK_SECRET set in /app/backend/.env for the signed-webhook tests (restored, backend restarted); one LIVE product row gid://shopify/Product/99900001 and 3 TEST- webhook_events rows created by the webhook tests and deleted in teardown (verified 0 rows, 0 LIVE products, 1200 DEMO products remain). Crawl settings returned to 3 req/sec / 3 workers. purge-fixtures was never executed.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "admin@urbandotted.com / Stage1Admin!2026 (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Run `python -m pytest /app/backend/tests/ -q` (pytest.ini already adds -n loadscope; do not pass -p no:xdist). test_webhook_replay.py auto-skips unless SHOPIFY_WEBHOOK_SECRET is present in /app/backend/.env - to exercise it, append the key, `sudo supervisorctl restart backend`, run, then restore the file and restart. The stage1 file's login fixture clears admin lockout rows on 429 because backend_test.py's brute-force class deliberately locks the admin; backend_test.py now samples locked rows inside its loop to tolerate that. Highest-value retest after fixes: submit bogus Shopify credentials, then assert GET /api/admin/connections still reports shop_domain null / admin_token_configured false and grep /app/backend/.env for shpat_ (test_stage1_live.py::TestShopifyCredentialFailure now asserts exactly this). Live ingestion still cannot be exercised - no real Shopify/GSC credentials.",
+  "rca_of_the_issue": "connect_shopify writes the submitted domain+token into /app/backend/.env and os.environ, then calls LiveShopifyAdapter().verify(), and only restores the snapshot inside `except`. Verification against a wrong domain takes ~35s (404 retried 5 times), leaving a long window in which the unverified secret is live in the environment. If that coroutine does not reach its exception handler (task cancellation on client disconnect / reload / any error raised outside the try block), the bogus value stays in .env and, because presence is the only signal, /api/admin/connections and the UI report the connection as 'Configured'. Worse, _rollback restores the os.environ snapshot taken at request start, so once a bad value is resident every subsequent failed attempt re-persists it. Observed evidence: after only failed attempts, .env contained SHOPIFY_SHOP_DOMAIN=\"nonexistent-test-store-9f2b.myshopify.com\" and SHOPIFY_ADMIN_API_TOKEN=\"shpat_UIBOGUS...\" and the API returned admin_token_configured true. Mitigation: verify candidate credentials without persisting them, and only write on success."
+}
