@@ -1,0 +1,62 @@
+{
+  "summary": "Comprehensive backend + frontend acceptance testing of the UrbanDotted Stage 1 SEO Intelligence platform. 39/39 pytest backend tests pass covering auth, meta/mode, stage-invariants, overview, AU/NZ war rooms, opportunities + evidence drawer, keywords + cannibalization, technical SEO, cost + budget exhaustion + reset + override validation, agent roles (28 total, 7 LLM + 21 services), memory, actions/execute refusal, all 4 pipelines, audit list + hash chain verification (also under concurrent load), RBAC on audit/cost endpoints, and brute-force lockout. Frontend smoke test: login → Overview → Opportunities (drawer open) → AU War Room → NZ War Room → Keywords → Technical → Cost → AI Operations (all 4 tabs, 28 role cards, pipeline triggered) → Logout → redirected to /login. DEMO DATA ACTIVE banner visible. All three previously-fixed bugs (mongo aggregate _id stripping, id→ObjectId mapping in where clauses, audit-log sequence duplication under concurrency) are confirmed fixed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/login",
+        "issue": "Brute-force lockout keys on identifier=request.client.host+email but preview ingress routes requests through multiple upstream proxies with different IPs (observed 10.227.3.197 and 10.227.3.198 alternating). An attacker distributed across those proxies can effectively double or triple the allowed attempts before any single identifier hits 5. Consider hashing on X-Forwarded-For (or email-only) with per-IP + per-email double keys."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Opportunities.jsx (filter-tier <select>) and any similar <select>",
+        "issue": "Runtime hydration warning: <span> injected inside <option> (emergent tooling markers). Cosmetic — does not break functionality but pollutes console with hydration warnings.",
+        "selector": "[data-testid=\"filter-tier\"] option",
+        "priority": "LOW"
+      },
+      {
+        "component": "shadcn Sheet / DialogContent (evidence-drawer, keyword-drawer, issue-drawer, activity-drawer)",
+        "issue": "Console warning: 'DialogContent requires a DialogTitle for the component to be accessible for screen reader users.' Add <SheetTitle> (or VisuallyHidden wrapper) and aria-describedby for a11y compliance.",
+        "selector": "[data-testid=\"evidence-drawer\"]",
+        "priority": "LOW"
+      },
+      {
+        "component": "Recharts ResponsiveContainer (Overview clicks-by-market chart etc.)",
+        "issue": "Console warning: 'The width(-1) and height(-1) of chart should be greater than 0'. Container is sized to 0 during first render — add minHeight or explicit height to parent.",
+        "selector": "recharts-responsive-container",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: harden brute-force lockout key to survive multi-proxy ingress (use X-Forwarded-For or track by email-only in addition to IP).",
+    "OPTIONAL: add SheetTitle/DialogTitle (or VisuallyHidden) inside each drawer for a11y — currently emits console warnings.",
+    "OPTIONAL: give Recharts ResponsiveContainer a stable min-height to silence width(-1)/height(-1) warnings on first render.",
+    "OPTIONAL: replace <span> inside <option> (emergent instrumentation) — likely tooling artefact, safe to ignore if it is."
+  ],
+  "critical_code_review_comments": [
+    "Stage 1 read-only invariants are cleanly enforced: /api/meta/stage-invariants reports write_route_count=0, every SHOPIFY_WRITE_ACTIONS classifies to risk_class=RED / decision=DENY, and /api/actions/{id}/execute returns {executed:false, reason:'STAGE_1_WRITES_DISABLED'}. Confirmed no /shopify/publish, /shopify/write, /products/update or /publish routes exist.",
+    "Budget exhaustion fail-closed behaviour is correct: paid_calls_blocked=true, free_pipelines_continue=true (shopify/gsc_api/crawler NOT blocked), halted=true, alert_level=100. reset-test-charges cleanly restores state.",
+    "Audit hash chain verify_chain() returns valid=true even after 20 concurrent GET /api/overview calls — the asyncio-lock fix is holding.",
+    "Repository id→ObjectId mapping fix is confirmed: /api/opportunities/{id}/evidence and /api/technical/issues/{id} both return the correct row.",
+    "Mongo $group _id-passthrough fix confirmed: technical/summary by_group and overview tier_distribution both return grouped keys correctly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100% (39/39)", "frontend": "100% (all critical flows pass)"},
+  "test_credentials": "admin@urbandotted.com / Stage1Admin!2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Test suite uses TEST_ prefix for override reasons and cleans login_attempts collection after brute-force tests. Budget-exhaustion test resets its own charges.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/backend_test.py is idempotent and safe to re-run — it cleans up its own test charges and login_attempts. Note that TestBruteForce.test_admin_lockout_flow_and_cleanup verifies lockout at DB level (not via 429 return code) because the preview ingress load-balances across multiple upstream IPs and the current identifier=ip:email scheme splits attempts. If the main agent tightens brute-force keying, update that test to check for 429 directly."
+}

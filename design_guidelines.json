@@ -1,0 +1,104 @@
+{
+  "theme": "dark",
+  "typography": {
+    "fonts": {
+      "heading": "IBM Plex Sans, sans-serif",
+      "body": "IBM Plex Sans, sans-serif",
+      "mono": "JetBrains Mono, monospace",
+      "forbidden": ["Space Grotesk", "Inter", "Roboto", "Open Sans", "Lato"]
+    },
+    "scale": {
+      "h1": "text-3xl sm:text-4xl tracking-tighter font-medium",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-medium",
+      "h3": "text-xl sm:text-2xl tracking-tight",
+      "h4": "text-lg font-medium",
+      "body": "text-sm",
+      "data": "text-sm font-mono tracking-tight",
+      "label": "text-xs font-semibold uppercase tracking-[0.2em]"
+    }
+  },
+  "colors": {
+    "palette_name": "Technical Obsidian (Archetype 2/4 Hybrid)",
+    "description": "High-density, high-contrast, pure command-center aesthetic for SEO ops. Avoids muddy grays, relies on stark geometric lines.",
+    "background": "#0A0A0A",
+    "surface": "#141414",
+    "border": "#262626",
+    "foreground": "#F5F5F5",
+    "muted_foreground": "#A3A3A3",
+    "primary": "#FFFFFF",
+    "primary_foreground": "#0A0A0A",
+    "accent_blue": "#007AFF",
+    "destructive": "#FF3B30",
+    "warning": "#FFCC00",
+    "success": "#34C759",
+    "forbidden": ["#1B93A4", "teal green", "teal blue", "gradients over 20%"]
+  },
+  "layouts": {
+    "general": "Sidebar navigation (left) + Main Content area (right). Full screen height (h-screen) with internal scrolling for main content.",
+    "spacing_strategy": "High Density Grid (For Dashboards). Base grid: grid-cols-12. Tight gaps (gap-4 or gap-6). Use padding p-4 to p-6 for internal card spacing.",
+    "dashboard_cards": "Flat background (bg-[#141414]), 1px solid border (border-[#262626]), no shadow. Sharp corners or very subtle rounding (rounded-sm).",
+    "data_density": "Compact rows for tables (32px-40px height). Cap tables at 6-8 visible columns to avoid horizontal scroll fatigue."
+  },
+  "components": {
+    "sidebar": "Fixed left width (e.g., 250px). Must feature clear active states and distinct 'disabled/coming soon' visual styling (opacity-50, cursor-not-allowed).",
+    "demo_banner": "Sticky top banner across the main layout. Background Warning Yellow, Text Black. 'DEMO DATA ACTIVE'.",
+    "cards": "Cardless or minimalist rectangular borders. DO NOT OVERUSE SHADOWS. Structure hierarchy via 1px borders.",
+    "tables": "Shadcn Table. Monospace fonts for all numeric data (tabular-nums utility). Color-coded trend indicators (red/green arrows).",
+    "drawers": "Use Shadcn Sheet for the 'evidence drawer' and 'drill-down' instead of navigating to new pages. Keeps the user in the context of the War Room.",
+    "gauges": "Use Recharts (PieChart with 180 start/end angle) or custom SVG for the Cost Ledger budget gauge ($100/mo cap).",
+    "tabs": "Shadcn Tabs for switching between AU War Room / NZ War Room, or Agent Activity / Memory."
+  },
+  "motion": {
+    "philosophy": "Minimalist and immediate. Functional feedback only.",
+    "hover_states": "Slight background lightness increase (hover:bg-[#262626]). NEVER lose text contrast.",
+    "transitions": "Fast, crisp. transition-colors duration-150 ease-in-out."
+  },
+  "visual_enhancers": {
+    "grid_borders": "The 'Technical' Look. Expose the skeleton. Container uses border-collapse layout, items have border-b and border-r.",
+    "textures": "No glossy elements. Matte finish. A very subtle noise overlay (opacity 2%) on the main background can be used if pure flat feels too dead.",
+    "data_visualization": "Recharts for trend lines. Clean, stroke-based charts (no fill gradients) to match the precise, technical vibe."
+  },
+  "instructions_to_main_agent": [
+    "Use .js/.jsx extensions for all React components. Do not use .tsx.",
+    "Install fonts: 'npm install @fontsource/ibm-plex-sans @fontsource/jetbrains-mono' or use standard web imports.",
+    "Use lucide-react for sharp, technical icons.",
+    "Modify index.css to enforce the Deep Obsidian dark mode palette globally. Hardcode dark mode colors into the :root or .dark layer.",
+    "Remove default centering from App.css (delete .App, .App-header styles).",
+    "Create a reusable Metric Card component that accepts: Title, Value (mono), Trend/Delta, and Drilldown onClick handler.",
+    "Implement the '0-100 Opportunity Score' with a colored pill/badge: Red (<50), Yellow (50-79), Green (80-100).",
+    "For tables, align numeric columns to the right and use the 'tabular-nums' Tailwind class.",
+    "Build a robust Layout component containing the Sidebar and a Main scrollable area.",
+    "Ensure the 'DEMO DATA' banner is highly visible, fixed at the top of the layout.",
+    "Avoid transparent backgrounds on dropdowns, select menus, or drawers. Always use Solid #141414 with a 1px border-border.",
+    "Use Recharts for the Cost Ledger gauge and keyword trend lines.",
+    "Construct deep drill-downs: clicking a table row MUST open a Shadcn Sheet showing evidence/agent memory.",
+    "Generate realistic mock data (e.g., real AU/NZ Shopify products, SEO metrics like 'Cannibalization Risk'). No lorem ipsum."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic outputs. Avoid 'AI slop' aesthetic by ensuring strict alignment, tight grids, and precise typography.",
+    "DO NOT use dark colors as gradients. Stick to flat, solid matte colors.",
+    "Do not make generic centered layouts. Use flex/grid for structural, left-aligned, optical alignments.",
+    "Create depth through 1px borders and distinct surface hex codes (#0A0A0A vs #141414), not soft box-shadows.",
+    "MUST NOT apply universal transition (transition: all). Use specific transitions (transition-colors, transition-transform).",
+    "Every interaction needs micro-animations (hover states, focus rings with focus:ring-2).",
+    "Missing categories = you will use placeholder text which is FORBIDDEN. Use realistic domain names, actual agent roles, and real SEO terminology.",
+    "Use sonner for toasts (located in /app/frontend/src/components/ui/sonner.js).",
+    "All interactive elements MUST include a 'data-testid' attribute (e.g., data-testid='sidebar-nav-link')."
+  ],
+  "GENERAL UI UX DESIGN GUIDELINES": [
+    "Metric-trend-detail hierarchy: Surface headline KPIs first, then provide drill-down capabilities.",
+    "Right-hand drawer pattern: Use sheets/drawers for detail views instead of full page reloads to maintain dashboard context.",
+    "Tabular numerals: Always use monospaced fonts for quantitative data to ensure vertical alignment and quick scanning.",
+    "Accessible contrast: Text must meet a minimum 4.5:1 contrast ratio against the background. Do not use dark gray text on black backgrounds.",
+    "Semantic color limits: Only use vibrant colors (Red, Green, Yellow, Blue) to signal status, alerts, or actionable links. Keep the structural UI monochrome.",
+    "State persistence: Ensure the UI clearly shows the active state (e.g., which tab is active, which sidebar item is selected)."
+  ],
+  "media": {
+    "icons": "lucide-react (default). Use solid/sharp variants where possible.",
+    "images_urls": []
+  },
+  "accessibility": {
+    "contrast": "Strict APCA/WCAG AA adherence. Pure White/Off-White text on Obsidian backgrounds.",
+    "data_testid": "Mandatory on all buttons, links, table rows, and form inputs for end-to-end testing."
+  }
+}

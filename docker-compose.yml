@@ -1,0 +1,70 @@
+# Production stack target for Stage 1. Not used inside the Emergent dev environment,
+# which runs a MongoDB development adapter (DEMO_INFRA_MODE=true).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: urbandotted
+      POSTGRES_USER: urbandotted
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urbandotted"]
+      interval: 10s
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+
+  api:
+    build: ./backend
+    environment:
+      DEMO_INFRA_MODE: "false"
+      POSTGRES_DSN: postgresql://urbandotted:${POSTGRES_PASSWORD}@postgres:5432/urbandotted
+      REDIS_URL: redis://redis:6379/0
+      BIGQUERY_PROJECT: ${BIGQUERY_PROJECT}
+      BIGQUERY_DATASET: ${BIGQUERY_DATASET}
+      GSC_SITE_URL: ${GSC_SITE_URL}
+      GSC_SERVICE_ACCOUNT_JSON: ${GSC_SERVICE_ACCOUNT_JSON}
+      SHOPIFY_SHOP_DOMAIN: ${SHOPIFY_SHOP_DOMAIN}
+      SHOPIFY_ADMIN_API_TOKEN: ${SHOPIFY_ADMIN_API_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      GLOBAL_MONTHLY_BUDGET_USD: "100"
+    depends_on: [postgres, redis, minio]
+    ports: ["8001:8001"]
+
+  worker:
+    build: ./backend
+    command: arq app.worker.WorkerSettings
+    environment:
+      DEMO_INFRA_MODE: "false"
+      POSTGRES_DSN: postgresql://urbandotted:${POSTGRES_PASSWORD}@postgres:5432/urbandotted
+      REDIS_URL: redis://redis:6379/0
+    depends_on: [postgres, redis]
+
+  web:
+    build: ./frontend
+    environment:
+      REACT_APP_BACKEND_URL: ${PUBLIC_API_URL}
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
